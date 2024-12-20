@@ -12,6 +12,10 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        goos: [linux, darwin]   # linux, darwin (macOS)
+        goarch: [amd64, arm64]  # CPU architectures
     steps:
     - uses: actions/checkout@v4
 
