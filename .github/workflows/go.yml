@@ -33,5 +33,5 @@ jobs:
     - name: Upload binary artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: ${{ matrix.goos }}-${{ matrix.goarch }}-binary
+        name: log-tailor-${{ matrix.goos }}-${{ matrix.goarch }}
         path: log-tailor-${{ matrix.goos }}-${{ matrix.goarch }}

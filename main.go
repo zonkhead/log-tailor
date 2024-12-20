@@ -55,7 +55,7 @@ func main() {
 
 	var itr *logadmin.EntryIterator
 	filter := createFilter()
-	fmt.Println(filter)
+
 	if filter != "" {
 		itr = client.Entries(ctx, logadmin.Filter(filter))
 	} else {
