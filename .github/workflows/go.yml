@@ -21,10 +21,13 @@ jobs:
         go-version: '1.23'
 
     - name: Build
-      run: go build
-      
-    - name: Upload binary artifact
+      run: go build -o log-tailor-${{ matrix.goos }}-${{ matrix.goarch }} .
+      env:
+        GOOS: ${{ matrix.goos }}
+        GOARCH: ${{ matrix.goarch }}
+
+    - name: Upload binary artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: log-tailor
-        path: log-tailor
+        name: ${{ matrix.goos }}-${{ matrix.goarch }}-binary
+        path: log-tailor-${{ matrix.goos }}-${{ matrix.goarch }}
