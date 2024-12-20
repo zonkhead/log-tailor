@@ -22,5 +22,5 @@ Very simple. Lets you specify a projectID and log names and filters.
 
 ## Where it may go
 
-Not sure yet. Originally, I was thinking allowing manipulation of the output but `jq` and `yq` do well at that.
+Not sure yet. Originally, I was thinking allowing manipulation of the output (thus the name "log-tailor") but `jq` and `yq` do well at that. I need to think more on this.
 
