@@ -51,7 +51,7 @@ func main() {
 		switch args.format {
 		case "yaml":
 			bytes, _ = yaml.Marshal(entry)
-			fmt.Printf("---\n%+v\n", string(bytes))
+			fmt.Printf("---\n%+v", string(bytes))
 		case "json":
 			bytes, _ = json.Marshal(entry)
 			fmt.Printf("%+v\n", string(bytes))
