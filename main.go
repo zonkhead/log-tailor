@@ -10,16 +10,41 @@ import (
 	"net/url"
 	"os"
 	"strings"
+	"time"
 
+	"cloud.google.com/go/logging"
 	"cloud.google.com/go/logging/logadmin"
 	"google.golang.org/api/iterator"
 )
 
 func main() {
 	parseArgs()
-	projID := args.projID
 	ctx := context.Background()
+	ch := make(chan *logging.Entry)
 
+	for _, p := range args.projIDs {
+		go pullLogs(ctx, p, ch)
+	}
+
+	for i := 0; i < args.limit; i++ {
+		processLogEntry(<-ch)
+	}
+}
+
+func processLogEntry(entry *logging.Entry) {
+	var bytes []byte
+
+	switch args.format {
+	case "yaml":
+		bytes, _ = yaml.Marshal(entry)
+		fmt.Printf("---\n%+v", string(bytes))
+	case "json":
+		bytes, _ = json.Marshal(entry)
+		fmt.Printf("%+v\n", string(bytes))
+	}
+}
+
+func pullLogs(ctx context.Context, projID string, ch chan *logging.Entry) {
 	client, err := logadmin.NewClient(ctx, projID)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to create logadmin client: %v\n", err)
@@ -30,32 +55,38 @@ func main() {
 	var itr *logadmin.EntryIterator
 	filter := createFilter()
 
-	if filter != "" {
-		itr = client.Entries(ctx, logadmin.Filter(filter))
-	} else {
-		itr = client.Entries(ctx)
-	}
+	mostRecent := time.Now().UTC()
+	// TODO: If it already contains a timestamp clause, don't mess with it.
+	itr = getEntries(ctx, client, filter+" "+timestampFilter(mostRecent))
 
-	for i := 0; i < args.limit; i++ {
+	for {
 		entry, err := itr.Next()
 		if err == iterator.Done {
-			break
+			// Start polling becase we ran out of entries.
+			time.Sleep(2 * time.Second)
+			// TODO: This should really fix the existing filter in case it already
+			//       contains a timestamp clause.
+			itr = getEntries(ctx, client, filter+" "+timestampFilter(mostRecent))
+			continue
 		}
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error retrieving logs: %v\n", err)
-			os.Exit(1)
+			fmt.Fprintf(os.Stderr, "Error retrieving logs (%s): %v\n", projID, err)
+			return
 		}
+		mostRecent = time.Now().UTC()
+		ch <- entry
+	}
+}
 
-		var bytes []byte
+func timestampFilter(ts time.Time) string {
+	return fmt.Sprintf(`timestamp >= "%s"`, ts.Format(time.RFC3339Nano))
+}
 
-		switch args.format {
-		case "yaml":
-			bytes, _ = yaml.Marshal(entry)
-			fmt.Printf("---\n%+v", string(bytes))
-		case "json":
-			bytes, _ = json.Marshal(entry)
-			fmt.Printf("%+v\n", string(bytes))
-		}
+func getEntries(ctx context.Context, client *logadmin.Client, filter string) *logadmin.EntryIterator {
+	if filter != "" {
+		return client.Entries(ctx, logadmin.Filter(filter))
+	} else {
+		return client.Entries(ctx)
 	}
 }
 
@@ -90,7 +121,7 @@ func createLogsFilter() string {
 }
 
 func logStr(l string) string {
-	return fmt.Sprintf(`"projects/%s/logs/%s"`, args.projID, l)
+	return fmt.Sprintf(`"projects/%s/logs/%s"`, args.projIDs, l)
 }
 
 func fixLogName(l string) string {
@@ -117,7 +148,7 @@ func (sl *stringList) Set(value string) error {
 //////
 
 type cmdlnArgs struct {
-	projID  string
+	projIDs stringList
 	format  string
 	logs    stringList
 	filters stringList
@@ -127,7 +158,7 @@ type cmdlnArgs struct {
 var args cmdlnArgs
 
 func parseArgs() {
-	flag.StringVar(&args.projID, "p", "", "Project ID")
+	flag.Var(&args.projIDs, "p", "Project ID (multiple ok)")
 	flag.StringVar(&args.format, "format", "yaml", "Format: json,yaml")
 	flag.Var(&args.logs, "l", "Log to tail (short name, multiple ok)")
 	flag.Var(&args.filters, "f", "Filter expression (multiple ok)")
