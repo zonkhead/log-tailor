@@ -15,32 +15,6 @@ import (
 	"google.golang.org/api/iterator"
 )
 
-// ////
-// For flag.Value support
-type stringList []string
-
-func (sl *stringList) String() string {
-	return strings.Join(*sl, ",")
-}
-
-func (sl *stringList) Set(value string) error {
-	*sl = append(*sl, value)
-	return nil
-}
-
-// For flag.Value support
-//////
-
-type cmdlnArgs struct {
-	projID  string
-	format  string
-	logs    stringList
-	filters stringList
-	limit   int
-}
-
-var args cmdlnArgs
-
 func main() {
 	parseArgs()
 	projID := args.projID
@@ -125,6 +99,32 @@ func fixLogName(l string) string {
 	}
 	return l
 }
+
+// ////
+// For flag.Value support
+type stringList []string
+
+func (sl *stringList) String() string {
+	return strings.Join(*sl, ",")
+}
+
+func (sl *stringList) Set(value string) error {
+	*sl = append(*sl, value)
+	return nil
+}
+
+// For flag.Value support
+//////
+
+type cmdlnArgs struct {
+	projID  string
+	format  string
+	logs    stringList
+	filters stringList
+	limit   int
+}
+
+var args cmdlnArgs
 
 func parseArgs() {
 	flag.StringVar(&args.projID, "p", "", "Project ID")
