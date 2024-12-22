@@ -3,12 +3,10 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"flag"
 	"fmt"
 	"gopkg.in/yaml.v2"
-	"math"
-	"net/url"
 	"os"
+	"regexp"
 	"strings"
 	"time"
 
@@ -56,17 +54,17 @@ func pullLogs(ctx context.Context, projID string, ch chan *logging.Entry) {
 	filter := createFilter()
 
 	mostRecent := time.Now().UTC()
-	// TODO: If it already contains a timestamp clause, don't mess with it.
-	itr = getEntries(ctx, client, filter+" "+timestampFilter(mostRecent))
+	if !hasTimestampClause(filter) {
+		filter = setTimestampClause(filter, mostRecent)
+	}
+	itr = getEntries(ctx, client, filter)
 
 	for {
 		entry, err := itr.Next()
 		if err == iterator.Done {
 			// Start polling becase we ran out of entries.
 			time.Sleep(2 * time.Second)
-			// TODO: This should really fix the existing filter in case it already
-			//       contains a timestamp clause.
-			itr = getEntries(ctx, client, filter+" "+timestampFilter(mostRecent))
+			itr = getEntries(ctx, client, setTimestampClause(filter, mostRecent))
 			continue
 		}
 		if err != nil {
@@ -75,6 +73,22 @@ func pullLogs(ctx context.Context, projID string, ch chan *logging.Entry) {
 		}
 		mostRecent = time.Now().UTC()
 		ch <- entry
+	}
+}
+
+func hasTimestampClause(f string) bool {
+	regex := `timestamp\s*([><=]+)\s*"(.*?)"`
+	re := regexp.MustCompile(regex)
+	return re.MatchString(f)
+}
+
+func setTimestampClause(f string, ts time.Time) string {
+	if hasTimestampClause(f) {
+		regex := `timestamp\s*([><=]+)\s*"(.*?)"`
+		re := regexp.MustCompile(regex)
+		return re.ReplaceAllString(f, timestampFilter(ts))
+	} else {
+		return f + " " + timestampFilter(ts)
 	}
 }
 
@@ -122,52 +136,4 @@ func createLogsFilter() string {
 
 func logStr(l string) string {
 	return fmt.Sprintf(`"projects/%s/logs/%s"`, args.projIDs, l)
-}
-
-func fixLogName(l string) string {
-	if strings.Contains(l, "/") {
-		return url.QueryEscape(l)
-	}
-	return l
-}
-
-// ////
-// For flag.Value support
-type stringList []string
-
-func (sl *stringList) String() string {
-	return strings.Join(*sl, ",")
-}
-
-func (sl *stringList) Set(value string) error {
-	*sl = append(*sl, value)
-	return nil
-}
-
-// For flag.Value support
-//////
-
-type cmdlnArgs struct {
-	projIDs stringList
-	format  string
-	logs    stringList
-	filters stringList
-	limit   int
-}
-
-var args cmdlnArgs
-
-func parseArgs() {
-	flag.Var(&args.projIDs, "p", "Project ID (multiple ok)")
-	flag.StringVar(&args.format, "format", "yaml", "Format: json,yaml")
-	flag.Var(&args.logs, "l", "Log to tail (short name, multiple ok)")
-	flag.Var(&args.filters, "f", "Filter expression (multiple ok)")
-	flag.IntVar(&args.limit, "limit", 0, "Number of entries to output. Defaults to 0 which is no-limit")
-	flag.Parse()
-	for i, l := range args.logs {
-		args.logs[i] = fixLogName(l)
-	}
-	if args.limit == 0 {
-		args.limit = math.MaxInt
-	}
 }
