@@ -11,9 +11,9 @@ Usage of ./log-tailor:
   -l value
     	Log to tail (short name, multiple ok)
   -limit int
-    	Number of entries to output. Defaults to 0 which is no-limit
-  -p string
-    	Project ID
+    	Number of entries to output. Defaults to MaxInt
+  -p value
+    	Project ID (multiple ok)
 ```
 
 ## Where it is now

@@ -3,16 +3,8 @@ package main
 import (
 	"flag"
 	"math"
-	"net/url"
 	"strings"
 )
-
-func fixLogName(l string) string {
-	if strings.Contains(l, "/") {
-		return url.QueryEscape(l)
-	}
-	return l
-}
 
 // ////
 // For flag.Value support
@@ -38,19 +30,14 @@ type cmdlnArgs struct {
 	limit   int
 }
 
-var args cmdlnArgs
+var _args cmdlnArgs
 
-func parseArgs() {
-	flag.Var(&args.projIDs, "p", "Project ID (multiple ok)")
-	flag.StringVar(&args.format, "format", "yaml", "Format: json,yaml")
-	flag.Var(&args.logs, "l", "Log to tail (short name, multiple ok)")
-	flag.Var(&args.filters, "f", "Filter expression (multiple ok)")
-	flag.IntVar(&args.limit, "limit", 0, "Number of entries to output. Defaults to 0 which is no-limit")
+func parseArgs() *cmdlnArgs {
+	flag.Var(&_args.projIDs, "p", "Project ID (multiple ok)")
+	flag.StringVar(&_args.format, "format", "yaml", "Format: json,yaml")
+	flag.Var(&_args.logs, "l", "Log to tail (short name, multiple ok)")
+	flag.Var(&_args.filters, "f", "Filter expression (multiple ok)")
+	flag.IntVar(&_args.limit, "limit", math.MaxInt, "Number of entries to output. Defaults to no-limit")
 	flag.Parse()
-	for i, l := range args.logs {
-		args.logs[i] = fixLogName(l)
-	}
-	if args.limit == 0 {
-		args.limit = math.MaxInt
-	}
+	return &_args
 }
