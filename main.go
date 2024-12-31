@@ -4,18 +4,21 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"gopkg.in/yaml.v3"
 	"io"
 	logger "log"
 	"net/url"
 	"os"
+	"reflect"
+	"regexp"
 	"runtime"
 	"strings"
 	"sync"
-
-	"gopkg.in/yaml.v3"
+	"time"
 
 	logging "cloud.google.com/go/logging/apiv2"
 	"cloud.google.com/go/logging/apiv2/loggingpb"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 var config *Config
@@ -59,17 +62,136 @@ func processLogEntries(wg *sync.WaitGroup, ch <-chan *loggingpb.LogEntry) {
 			continue
 		}
 
+		li := createLogItem(entry)
+
 		var bytes []byte
 
 		switch config.Format {
 		case "yaml":
-			bytes, _ = yaml.Marshal(entry)
+			bytes, _ = yaml.Marshal(li)
 			serialPrintf("---\n%+v", string(bytes))
 		case "json":
-			bytes, _ = json.Marshal(entry)
+			bytes, err := json.Marshal(li)
+			if err != nil {
+				stderrf("%v\n", err)
+			}
 			serialPrintf("%+v\n", string(bytes))
 		}
 	}
+}
+
+func createLogItem(entry *loggingpb.LogEntry) any {
+	item := make(OutputMap)
+	lname := logName(entry)
+
+	for _, log := range config.Logs {
+		if lname == log.Name {
+			if log.ResType != "" && log.ResType != entry.Resource.Type {
+				continue
+			}
+			addOutputToItem(config.Common, item, entry)
+			addOutputToItem(log.Output, item, entry)
+			return item
+		}
+	}
+
+	return entry
+}
+
+func addOutputToItem(outputs []OutputMap, item OutputMap, entry *loggingpb.LogEntry) {
+	for _, oi := range outputs {
+		name := fieldName(oi)
+		addToItem(name, oi[name], item, entry)
+	}
+}
+
+func addToItem(name string, oi any, item OutputMap, entry *loggingpb.LogEntry) {
+	if outItem, ok := oi.(OutputMap); ok {
+		if hasKeys(outItem, "src", "regex", "value") {
+			if src, ok := entryData(entry, strVal(outItem, "src")).(string); ok {
+				rgx := strVal(outItem, "regex")
+				val := strVal(outItem, "value")
+				item[name] = regexVal(src, rgx, val)
+			}
+		} else {
+			newItem := OutputMap{}
+			item[name] = newItem
+			for k := range outItem {
+				addToItem(k, outItem[k], newItem, entry)
+			}
+		}
+	} else {
+		if v, ok := oi.(string); ok {
+			item[name] = entryData(entry, v)
+		}
+	}
+}
+
+func fieldName(outItem OutputMap) string {
+	name := ""
+	for k := range outItem {
+		name = k
+	}
+	return name
+}
+
+func logName(entry *loggingpb.LogEntry) string {
+	re := regexp.MustCompile("^.*/(.*)$")
+	m := re.FindStringSubmatch(entry.LogName)
+	if m == nil {
+		logger.Printf("Something is fundamentally broken with logging LogName: %s", entry.LogName)
+		os.Exit(1)
+	}
+	fixed, _ := url.PathUnescape(m[1])
+	return fixed
+}
+
+// Gets data from the LogEntry with a dot-separated path as a specifier.
+// example path: resources.labels.project_id
+func entryData(entry *loggingpb.LogEntry, path string) any {
+	// Necessary hack for Golang naming of fields:
+	if path == "logname" {
+		path = "LogName"
+	}
+
+	val := reflect.ValueOf(entry)
+
+	for _, field := range pathElements(path) {
+		// Dereference pointers if necessary
+		if val.Kind() == reflect.Ptr {
+			val = val.Elem()
+		}
+
+		switch val.Kind() {
+		case reflect.Struct:
+			val = val.FieldByName(capitalize(field))
+			if !val.IsValid() {
+				return fmt.Sprintf("Field %s not found", path)
+			}
+		case reflect.Map:
+			// Access the map by key
+			mapKey := reflect.ValueOf(field)
+			val = val.MapIndex(mapKey)
+			if !val.IsValid() {
+				return fmt.Sprintf("Key %s not found in map", field)
+			}
+		}
+	}
+
+	// Special handling for time.Time
+	if val.Kind() == reflect.Ptr && val.Type() == reflect.TypeOf(&timestamppb.Timestamp{}) {
+		ts := val.Elem().Interface().(timestamppb.Timestamp)
+		return ts.AsTime().Format(time.RFC3339Nano)
+	}
+
+	// Hack for logname:
+	if path == "LogName" {
+		if s, ok := val.Interface().(string); ok {
+			p, _ := url.PathUnescape(s)
+			return p
+		}
+	}
+	return val.Interface()
 }
 
 var printMU sync.Mutex
@@ -161,17 +283,19 @@ func pullLogs(ctx context.Context, cancel context.CancelFunc, wg *sync.WaitGroup
 
 		for _, entry := range resp.Entries {
 			pcMU.Lock()
-			if pullCount >= config.Limit {
+			if config.Limit != NoLimit && pullCount >= config.Limit {
 				stream.CloseSend()
 				return
 			}
 			ch <- entry
-			pullCount++
-			if pullCount == config.Limit {
-				// We hit the limit. Make everyone un-block and go home.
-				cancel()
-				stream.CloseSend()
-				return
+			if config.Limit != NoLimit {
+				pullCount++
+				if pullCount == config.Limit {
+					// We hit the limit. Make everyone un-block and go home.
+					cancel()
+					stream.CloseSend()
+					return
+				}
 			}
 			pcMU.Unlock()
 		}
@@ -197,7 +321,7 @@ func createFilter(proj string) string {
 // URL encodes the log name. Cloud logging is picky that way.
 func fixLogName(l string) string {
 	if strings.Contains(l, "/") {
-		return url.QueryEscape(l)
+		return url.PathEscape(l)
 	}
 	return l
 }

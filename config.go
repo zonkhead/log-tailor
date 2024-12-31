@@ -7,20 +7,22 @@ import (
 	"os"
 )
 
+type OutputMap map[string]any
+
 type Config struct {
 	Limit     int
 	Format    string
-	MatchRule string   `yaml:"match-rule"`
-	Projects  []string `yaml:"projects"`
-	Common    []any    `yaml:"common-output"`
-	Logs      []Log    `yaml:"logs"`
-	Filters   []string `yaml:"filters"`
+	MatchRule string      `yaml:"match-rule"`
+	Projects  []string    `yaml:"projects"`
+	Common    []OutputMap `yaml:"common-output"`
+	Logs      []Log       `yaml:"logs"`
+	Filters   []string    `yaml:"filters"`
 }
 
 type Log struct {
-	Name    string `yaml:"name"`
-	ResType string `yaml:"type"`
-	Output  []any  `yaml:"output"`
+	Name    string      `yaml:"name"`
+	ResType string      `yaml:"type"`
+	Output  []OutputMap `yaml:"output"`
 }
 
 // Reads the yaml config from stdin
@@ -47,12 +49,11 @@ func getConfig(args *cmdlnArgs) *Config {
 	}
 
 	// Fix it
-	config.Limit = 0
 	if config.MatchRule == "" {
 		config.MatchRule = "all"
 	}
 
-	return config.overrideFields(args)
+	return config.overrideFields(args).validatePaths()
 }
 
 func (c *Config) setDefaults() *Config {
@@ -62,6 +63,8 @@ func (c *Config) setDefaults() *Config {
 	return c
 }
 
+// Let the command line args override their equivalents
+// in the yaml config.
 func (c *Config) overrideFields(args *cmdlnArgs) *Config {
 	c.Limit = args.limit
 	c.Format = args.format
@@ -92,4 +95,39 @@ func (c *Config) overrideFields(args *cmdlnArgs) *Config {
 	}
 
 	return c
+}
+
+// Check paths to make sure key() syntax is valid
+func (c *Config) validatePaths() *Config {
+	for k := range c.Common {
+		validateOutput(c.Common[k])
+	}
+	for _, l := range c.Logs {
+		for k := range l.Output {
+			validateOutput(l.Output[k])
+		}
+	}
+	return c
+}
+
+// Helper for validatePaths()
+func validateOutput(o any) {
+	switch o := o.(type) {
+	case string:
+		pathElements(o)
+	case OutputMap:
+		if hasKeys(o, "src", "regex", "value") {
+			s := o["src"].(string)
+			pathElements(s)
+		} else {
+			for k := range o {
+				switch kv := o[k].(type) {
+				case string:
+					pathElements(kv)
+				case OutputMap:
+					validateOutput(kv)
+				}
+			}
+		}
+	}
 }
