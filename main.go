@@ -127,7 +127,48 @@ func createLogItem(entry *logpb.LogEntry) any {
 		}
 	}
 
-	return entry
+	addEntryToItem(item, entry)
+
+	return item
+}
+
+func addEntryToItem(item OutputMap, entry *logpb.LogEntry) {
+	val := reflect.ValueOf(entry.Payload)
+	if val.Type() == reflect.TypeOf(&logpb.LogEntry_ProtoPayload{}) {
+		pp := val.Elem().Interface().(logpb.LogEntry_ProtoPayload)
+		item["protoPayload"] = reflect.ValueOf(getProtoPayload(pp)).Interface()
+	} else if val.Type() == reflect.TypeOf(&logpb.LogEntry_JsonPayload{}) {
+		item["jsonPayload"] = entry.Payload
+	} else if val.Type() == reflect.TypeOf(&logpb.LogEntry_TextPayload{}) {
+		item["textPayload"] = entry.Payload
+	} else {
+		item["payload"] = entry.Payload
+	}
+
+	item["logName"] = entry.LogName
+	if entry.Resource != nil {
+		item["resource"] = entry.Resource
+	}
+	item["timestamp"] = entry.Timestamp
+	item["receiveTimestamp"] = entry.ReceiveTimestamp
+	item["severity"] = entry.Severity
+	item["insertId"] = entry.InsertId
+	if entry.HttpRequest != nil {
+		item["httpRequest"] = entry.HttpRequest
+	}
+	item["labels"] = entry.Labels
+	if entry.Operation != nil {
+		item["operation"] = entry.Operation
+	}
+	item["trace"] = entry.Trace
+	item["spanid"] = entry.SpanId
+	item["tracesampled"] = entry.TraceSampled
+	if entry.SourceLocation != nil {
+		item["sourcelocation"] = entry.SourceLocation
+	}
+	if entry.Split != nil {
+		item["split"] = entry.Split
+	}
 }
 
 func addOutputToItem(outputs []OutputMap, item OutputMap, entry *logpb.LogEntry) {
@@ -181,14 +222,6 @@ func logName(entry *logpb.LogEntry) string {
 // Gets data from the LogEntry with a dot-separated path as a specifier.
 // example path: resources.labels.project_id
 func entryData(entry *logpb.LogEntry, path string) any {
-	// Necessary hack for Golang naming of fields:
-	switch path {
-	case "logname":
-		path = "LogName"
-	case "receivetimestamp":
-		path = "ReceiveTimestamp"
-	}
-
 	val := reflect.ValueOf(entry)
 
 	for _, field := range pathElements(path) {
@@ -202,6 +235,11 @@ func entryData(entry *logpb.LogEntry, path string) any {
 			val = val.FieldByName(capitalize(field))
 			if !val.IsValid() {
 				return fmt.Sprintf("Field %s not found", path)
+			}
+			// Special handling for time.Time
+			if val.Type() == reflect.TypeOf(&timestamppb.Timestamp{}) {
+				ts := val.Elem().Interface().(timestamppb.Timestamp)
+				return ts.AsTime().Format(time.RFC3339Nano)
 			}
 		case reflect.Map:
 			// Access the map by key
@@ -217,12 +255,6 @@ func entryData(entry *logpb.LogEntry, path string) any {
 				val = reflect.ValueOf(getProtoPayload(pp))
 			}
 		}
-	}
-
-	// Special handling for time.Time
-	if val.Kind() == reflect.Ptr && val.Type() == reflect.TypeOf(&timestamppb.Timestamp{}) {
-		ts := val.Elem().Interface().(timestamppb.Timestamp)
-		return ts.AsTime().Format(time.RFC3339Nano)
 	}
 
 	// Hack for logname:
