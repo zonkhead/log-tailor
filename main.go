@@ -138,7 +138,8 @@ func addEntryToItem(item OutputMap, entry *logpb.LogEntry) {
 		pp := val.Elem().Interface().(logpb.LogEntry_ProtoPayload)
 		item["protoPayload"] = reflect.ValueOf(getProtoPayload(pp)).Interface()
 	} else if val.Type() == reflect.TypeOf(&logpb.LogEntry_JsonPayload{}) {
-		item["jsonPayload"] = entry.Payload
+		jp := val.Elem().Interface().(logpb.LogEntry_JsonPayload)
+		item["jsonPayload"] = jp.JsonPayload.AsMap()
 	} else if val.Type() == reflect.TypeOf(&logpb.LogEntry_TextPayload{}) {
 		item["textPayload"] = entry.Payload
 	} else {
