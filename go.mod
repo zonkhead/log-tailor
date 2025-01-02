@@ -3,8 +3,8 @@ module github.com/zonkhead/log-tailor
 go 1.23.3
 
 require (
-	cloud.google.com/go/logging v1.12.0
-	google.golang.org/genproto v0.0.0-20241230172942-26aa7a208def
+	cloud.google.com/go/logging v1.13.0
+	google.golang.org/genproto v0.0.0-20250102185135-69823020774d
 	google.golang.org/protobuf v1.36.1
 	gopkg.in/yaml.v3 v3.0.1
 )
