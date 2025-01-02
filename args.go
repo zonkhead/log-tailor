@@ -35,7 +35,7 @@ var _args cmdlnArgs
 
 func parseArgs() *cmdlnArgs {
 	flag.Var(&_args.projIDs, "p", "Project ID (multiple ok)")
-	flag.StringVar(&_args.format, "format", "yaml", "Format: json,yaml")
+	flag.StringVar(&_args.format, "format", "yaml", "Format: json,yaml,csv")
 	flag.Var(&_args.logs, "l", "Log to tail (short name, multiple ok)")
 	flag.Var(&_args.filters, "f", "Filter expression (multiple ok)")
 	flag.IntVar(&_args.limit, "limit", NoLimit, "Number of entries to output. Defaults to no-limit")

@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/csv"
 	"encoding/json"
 	"fmt"
 	"gopkg.in/yaml.v3"
@@ -53,6 +54,7 @@ func main() {
 // Pulls log entries from the channel and prints them to stdout.
 func processLogEntries(wg *sync.WaitGroup, ch <-chan *loggingpb.LogEntry) {
 	defer wg.Done()
+
 	for {
 		entry, ok := <-ch
 		if !ok {
@@ -64,18 +66,36 @@ func processLogEntries(wg *sync.WaitGroup, ch <-chan *loggingpb.LogEntry) {
 
 		li := createLogItem(entry)
 
-		var bytes []byte
-
 		switch config.Format {
 		case "yaml":
-			bytes, _ = yaml.Marshal(li)
-			serialPrintf("---\n%+v", string(bytes))
-		case "json":
-			bytes, err := json.Marshal(li)
-			if err != nil {
+			if bytes, err := yaml.Marshal(li); err != nil {
 				stderrf("%v\n", err)
+			} else {
+				serialPrintf("---\n%+v", string(bytes))
 			}
-			serialPrintf("%+v\n", string(bytes))
+		case "json":
+			if bytes, err := json.Marshal(li); err != nil {
+				stderrf("%v\n", err)
+			} else {
+				serialPrintf("%+v\n", string(bytes))
+			}
+		case "csv":
+			if om, ok := li.(OutputMap); ok {
+				var row []string
+				for k := range om {
+					switch i := om[k].(type) {
+					case string:
+						row = append(row, i)
+					case any:
+						if bytes, err := json.Marshal(li); err != nil {
+							stderrf("%v\n", err)
+						} else {
+							row = append(row, string(bytes))
+						}
+					}
+				}
+				serialCSVWrite(row)
+			}
 		}
 	}
 }
@@ -203,6 +223,15 @@ func serialPrintf(format string, values ...any) {
 	fmt.Printf(format, values...)
 }
 
+// Makes sure printing to stdout doesn't overlap.
+func serialCSVWrite(row []string) {
+	printMU.Lock()
+	defer printMU.Unlock()
+	csvWr := csv.NewWriter(os.Stdout)
+	csvWr.Write(row)
+	csvWr.Flush()
+}
+
 // Determines if the entry should be logged to stdout
 func shouldDropEntry(entry *loggingpb.LogEntry) bool {
 	if config.MatchRule == "drop-no-match" {
@@ -225,7 +254,9 @@ func getProjID(entry *loggingpb.LogEntry) string {
 	return entry.Resource.Labels["project_id"]
 }
 
-func startTailing(ctx context.Context, client *logging.Client, projID string) loggingpb.LoggingServiceV2_TailLogEntriesClient {
+type TailClient loggingpb.LoggingServiceV2_TailLogEntriesClient
+
+func startTailing(ctx context.Context, client *logging.Client, projID string) TailClient {
 	stream, err := client.TailLogEntries(ctx)
 	if err != nil {
 		logger.Printf("Failed to start log entry tail: %v\n", err)
