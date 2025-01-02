@@ -1,4 +1,4 @@
-module log-tailor
+module github.com/zonkhead/log-tailor
 
 go 1.23.3
 
