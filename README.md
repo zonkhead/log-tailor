@@ -7,7 +7,7 @@ Usage of ./log-tailor:
   -f value
     	Filter expression (multiple ok)
   -format string
-    	Format: json,yaml (default "yaml")
+        Format: json,yaml,csv (default "yaml")
   -l value
     	Log to tail (short name, multiple ok)
   -limit int
