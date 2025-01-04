@@ -199,18 +199,18 @@ func addOutputToItem(outputs []OutputMap, item OutputMap, entry *logpb.LogEntry)
 }
 
 func addToItem(name string, oi any, item OutputMap, entry *logpb.LogEntry) {
-	if outItem, ok := oi.(OutputMap); ok {
-		if hasKeys(outItem, "src", "regex", "value") {
-			if src, ok := entryData(entry, strVal(outItem, "src")).(string); ok {
-				rgx := strVal(outItem, "regex")
-				val := strVal(outItem, "value")
+	if om, ok := oi.(OutputMap); ok {
+		if hasKeys(om, "src", "regex", "value") {
+			if src, ok := entryData(entry, strVal(om, "src")).(string); ok {
+				rgx := strVal(om, "regex")
+				val := strVal(om, "value")
 				item[name] = regexVal(src, rgx, val)
 			}
 		} else {
 			newItem := OutputMap{}
 			item[name] = newItem
-			for k := range outItem {
-				addToItem(k, outItem[k], newItem, entry)
+			for k := range om {
+				addToItem(k, om[k], newItem, entry)
 			}
 		}
 	} else {
@@ -250,6 +250,21 @@ func entryData(entry *logpb.LogEntry, path string) any {
 			val = val.Elem()
 		}
 
+		// Compensate for cloud logging's GUIs transforming payload to different names
+		if field == "protoPayload" {
+			val = val.FieldByName("Payload")
+			pp := val.Elem().Interface().(*logpb.LogEntry_ProtoPayload)
+			val = reflect.ValueOf(getProtoPayload(*pp))
+			continue
+		} else if field == "jsonPayload" {
+			jp := val.Elem().Interface().(logpb.LogEntry_JsonPayload)
+			val = reflect.ValueOf(jp.JsonPayload.AsMap())
+			continue
+		} else if val.Type() == reflect.TypeOf(&logpb.LogEntry_TextPayload{}) {
+			val = reflect.ValueOf(entry.Payload)
+			continue
+		}
+
 		switch val.Kind() {
 		case reflect.Struct:
 			val = val.FieldByName(capitalize(field))
@@ -267,12 +282,6 @@ func entryData(entry *logpb.LogEntry, path string) any {
 			val = val.MapIndex(mapKey)
 			if !val.IsValid() {
 				return fmt.Sprintf("Key %s not found in map", field)
-			}
-		case reflect.Ptr:
-			// Handle protopayload
-			if val.Type() == reflect.TypeOf(&logpb.LogEntry_ProtoPayload{}) {
-				pp := val.Elem().Interface().(logpb.LogEntry_ProtoPayload)
-				val = reflect.ValueOf(getProtoPayload(pp))
 			}
 		}
 	}
@@ -315,7 +324,7 @@ func getProtoPayload(pp logpb.LogEntry_ProtoPayload) any {
 		return fmt.Errorf("failed to marshal dynamic message to JSON: %v", err)
 	}
 
-	var payloadMap map[string]interface{}
+	var payloadMap map[string]any
 	err = json.Unmarshal(jsonBytes, &payloadMap)
 	if err != nil {
 		return fmt.Errorf("Failed to unmarshal JSON to map: %v", err)
