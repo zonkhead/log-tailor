@@ -92,22 +92,41 @@ func processLogEntries(wg *sync.WaitGroup, ch <-chan *logpb.LogEntry) {
 		case "csv":
 			if om, ok := li.(OutputMap); ok {
 				var row []string
-				for k := range om {
-					switch i := om[k].(type) {
-					case string:
-						row = append(row, i)
-					case any:
-						if bytes, err := json.Marshal(li); err != nil {
-							stderrf("%v\n", err)
-						} else {
-							row = append(row, string(bytes))
-						}
+				if len(config.Common) > 0 {
+					row = addOutputToRow(config.Common, om, row)
+				}
+				if len(config.Logs) > 0 {
+					for _, l := range config.Logs {
+						row = addOutputToRow(l.Output, om, row)
 					}
 				}
 				serialCSVWrite(row)
 			}
 		}
 	}
+}
+
+func addOutputToRow(outputs []OutputMap, item OutputMap, row []string) []string {
+	for _, m := range outputs {
+		for k := range m {
+			switch v := item[k].(type) {
+			case OutputMap:
+				json, _ := json.Marshal(v)
+				row = append(row, string(json))
+			case map[string]string:
+				json, _ := json.Marshal(v)
+				row = append(row, string(json))
+			case map[string]interface{}:
+				json, _ := json.Marshal(v)
+				row = append(row, string(json))
+			case string:
+				row = append(row, v)
+			default:
+				stderrf("key: %s: %T\n", k, v)
+			}
+		}
+	}
+	return row
 }
 
 func createLogItem(entry *logpb.LogEntry) any {
