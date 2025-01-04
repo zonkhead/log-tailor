@@ -48,6 +48,11 @@ logs:
   - payload: payload.protopayload
 ```
 
+CSV output was added to pipe data into SQL databases. There's an example script that reads from `stdin` and sends to postgresql:
+
+```bash
+./log-tailor -format csv < output-config.yaml | ./scripts/csv2psql.sh user_name db_name table_name
+```
 ## Where it is now
 
 You can specify logs, filters, projects, and output formats. If you want to customize (tailor) the output, you can specify a YAML config that maps values from the log entries to keys and values in the output.
