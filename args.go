@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"math"
 	"strings"
 )
 
@@ -29,8 +30,6 @@ type cmdlnArgs struct {
 	limit   int
 }
 
-var NoLimit int = -1
-
 var _args cmdlnArgs
 
 func parseArgs() *cmdlnArgs {
@@ -38,7 +37,7 @@ func parseArgs() *cmdlnArgs {
 	flag.StringVar(&_args.format, "format", "yaml", "Format: json,yaml,csv")
 	flag.Var(&_args.logs, "l", "Log to tail (short name, multiple ok)")
 	flag.Var(&_args.filters, "f", "Filter expression (multiple ok)")
-	flag.IntVar(&_args.limit, "limit", NoLimit, "Number of entries to output. Defaults to no-limit")
+	flag.IntVar(&_args.limit, "limit", math.MaxInt, "Number of entries to output. Defaults to MaxInt")
 	flag.Parse()
 	return &_args
 }

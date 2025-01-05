@@ -32,7 +32,7 @@ common-output:
 - timestamp: timestamp
 - project: resource.labels.project_id
 - log-name:
-    src: logname
+    src: logName
     regex: projects/.*?/logs/(.*)
     value: $1
 - resource-type: resource.type

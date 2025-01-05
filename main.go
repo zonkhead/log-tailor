@@ -441,19 +441,17 @@ func pullLogs(ctx context.Context, cancel context.CancelFunc, wg *sync.WaitGroup
 
 		for _, entry := range resp.Entries {
 			pcMU.Lock()
-			if config.Limit != NoLimit && pullCount >= config.Limit {
+			if pullCount >= config.Limit {
 				stream.CloseSend()
 				return
 			}
 			ch <- entry
-			if config.Limit != NoLimit {
-				pullCount++
-				if pullCount == config.Limit {
-					// We hit the limit. Make everyone un-block and go home.
-					cancel()
-					stream.CloseSend()
-					return
-				}
+			pullCount++
+			if pullCount == config.Limit {
+				// We hit the limit. Make everyone un-block and go home.
+				cancel()
+				stream.CloseSend()
+				return
 			}
 			pcMU.Unlock()
 		}
