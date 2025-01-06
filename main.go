@@ -260,8 +260,9 @@ func entryData(entry *logpb.LogEntry, path string) any {
 			jp := val.Elem().Interface().(logpb.LogEntry_JsonPayload)
 			val = reflect.ValueOf(jp.JsonPayload.AsMap())
 			continue
-		} else if val.Type() == reflect.TypeOf(&logpb.LogEntry_TextPayload{}) {
-			val = reflect.ValueOf(entry.Payload)
+		} else if field == "textPayload" {
+			tp := val.Elem().Interface().(logpb.LogEntry_TextPayload)
+			val = reflect.ValueOf(tp.TextPayload)
 			continue
 		}
 
