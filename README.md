@@ -7,13 +7,15 @@ Usage of ./log-tailor:
   -f value
     	Filter expression (multiple ok)
   -format string
-        Format: json,yaml,csv (default "yaml")
+    	Format: json,yaml,csv (default "yaml")
   -l value
     	Log to tail (short name, multiple ok)
   -limit int
-    	Number of entries to output. Defaults to MaxInt
+    	Number of entries to output. Defaults to MaxInt (default 9223372036854775807)
   -p value
     	Project ID (multiple ok)
+  -version
+    	Show version info
 ```
 
 Command line args override values in the config. You can pass a YAML config in via `stdin`. Here's a simple example for now:

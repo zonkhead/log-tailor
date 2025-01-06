@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"math"
+	"os"
 	"strings"
 )
 
@@ -37,7 +38,15 @@ func parseArgs() *cmdlnArgs {
 	flag.StringVar(&_args.format, "format", "yaml", "Format: json,yaml,csv")
 	flag.Var(&_args.logs, "l", "Log to tail (short name, multiple ok)")
 	flag.Var(&_args.filters, "f", "Filter expression (multiple ok)")
-	flag.IntVar(&_args.limit, "limit", math.MaxInt, "Number of entries to output. Defaults to MaxInt")
+	flag.IntVar(&_args.limit, "limit", -1, "Number of entries to output. Defaults to MaxInt")
+	version := flag.Bool("version", false, "Show version info")
 	flag.Parse()
+	if _args.limit <= 0 {
+		_args.limit = math.MaxInt
+	}
+	if *version {
+		stderrln("Version: 0.1.6")
+		os.Exit(0)
+	}
 	return &_args
 }

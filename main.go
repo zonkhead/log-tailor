@@ -244,15 +244,19 @@ func logName(entry *logpb.LogEntry) string {
 func entryData(entry *logpb.LogEntry, path string) any {
 	val := reflect.ValueOf(entry)
 
-	for _, field := range pathElements(path) {
+	for i, field := range pathElements(path) {
 		// Dereference pointers if necessary
 		if val.Kind() == reflect.Ptr || val.Kind() == reflect.Interface {
 			val = val.Elem()
 		}
 
 		// Compensate for cloud logging's GUIs transforming payload to different names
+		if i == 0 && (field == "protoPayload" || field == "jsonPayload" || field == "textPayload") {
+			if val.Type() == reflect.TypeOf(logpb.LogEntry{}) {
+				val = reflect.ValueOf(entry.Payload)
+			}
+		}
 		if field == "protoPayload" {
-			val = val.FieldByName("Payload")
 			pp := val.Elem().Interface().(*logpb.LogEntry_ProtoPayload)
 			val = reflect.ValueOf(getProtoPayload(*pp))
 			continue
@@ -364,7 +368,7 @@ func serialCSVWrite(row []string) {
 func shouldDropEntry(entry *logpb.LogEntry) bool {
 	if config.MatchRule == "drop-no-match" {
 		for _, log := range config.Logs {
-			lnMatch := entry.LogName == toLogStr(getProjID(entry), fixLogName(log.Name))
+			lnMatch := logName(entry) == log.Name
 			typeMatch := true
 			if log.ResType != "" {
 				typeMatch = entry.Resource.Type == log.ResType
