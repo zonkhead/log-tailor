@@ -90,18 +90,16 @@ func processLogEntries(wg *sync.WaitGroup, ch <-chan *logpb.LogEntry) {
 				serialPrintf("%+v\n", string(bytes))
 			}
 		case "csv":
-			if om, ok := li.(OutputMap); ok {
-				var row []string
-				if len(config.Common) > 0 {
-					row = addOutputToRow(config.Common, om, row)
-				}
-				if len(config.Logs) > 0 {
-					for _, l := range config.Logs {
-						row = addOutputToRow(l.Output, om, row)
-					}
-				}
-				serialCSVWrite(row)
+			var row []string
+			if len(config.Common) > 0 {
+				row = addOutputToRow(config.Common, li, row)
 			}
+			if len(config.Logs) > 0 {
+				for _, l := range config.Logs {
+					row = addOutputToRow(l.Output, li, row)
+				}
+			}
+			serialCSVWrite(row)
 		}
 	}
 }
@@ -129,7 +127,7 @@ func addOutputToRow(outputs []OutputMap, item OutputMap, row []string) []string 
 	return row
 }
 
-func createLogItem(entry *logpb.LogEntry) any {
+func createLogItem(entry *logpb.LogEntry) OutputMap {
 	item := make(OutputMap)
 	lname := logName(entry)
 
