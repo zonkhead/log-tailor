@@ -158,7 +158,8 @@ func addEntryToItem(item OutputMap, entry *logpb.LogEntry) {
 		jp := val.Elem().Interface().(logpb.LogEntry_JsonPayload)
 		item["jsonPayload"] = jp.JsonPayload.AsMap()
 	} else if val.Type() == reflect.TypeOf(&logpb.LogEntry_TextPayload{}) {
-		item["textPayload"] = entry.Payload
+		tp := val.Elem().Interface().(logpb.LogEntry_TextPayload)
+		item["textPayload"] = tp.TextPayload
 	} else {
 		item["payload"] = entry.Payload
 	}
@@ -167,8 +168,8 @@ func addEntryToItem(item OutputMap, entry *logpb.LogEntry) {
 	if entry.Resource != nil {
 		item["resource"] = entry.Resource
 	}
-	item["timestamp"] = entry.Timestamp
-	item["receiveTimestamp"] = entry.ReceiveTimestamp
+	item["timestamp"] = entry.Timestamp.AsTime().Format(time.RFC3339Nano)
+	item["receiveTimestamp"] = entry.ReceiveTimestamp.AsTime().Format(time.RFC3339Nano)
 	item["severity"] = entry.Severity
 	item["insertId"] = entry.InsertId
 	if entry.HttpRequest != nil {
@@ -254,21 +255,20 @@ func entryData(entry *logpb.LogEntry, path string) any {
 				val = reflect.ValueOf(entry.Payload)
 			}
 		}
-		if field == "protoPayload" {
-			pp := val.Elem().Interface().(*logpb.LogEntry_ProtoPayload)
-			val = reflect.ValueOf(getProtoPayload(*pp))
-			continue
-		} else if field == "jsonPayload" {
-			jp := val.Elem().Interface().(logpb.LogEntry_JsonPayload)
-			val = reflect.ValueOf(jp.JsonPayload.AsMap())
-			continue
-		} else if field == "textPayload" {
-			tp := val.Elem().Interface().(logpb.LogEntry_TextPayload)
-			val = reflect.ValueOf(tp.TextPayload)
-			continue
-		}
 
 		switch val.Kind() {
+		case reflect.Ptr:
+			switch p := val.Elem().Interface().(type) {
+			case logpb.LogEntry_ProtoPayload:
+				val = reflect.ValueOf(getProtoPayload(p))
+				continue
+			case logpb.LogEntry_JsonPayload:
+				val = reflect.ValueOf(p.JsonPayload.AsMap())
+				continue
+			case logpb.LogEntry_TextPayload:
+				val = reflect.ValueOf(p.TextPayload)
+				continue
+			}
 		case reflect.Struct:
 			val = val.FieldByName(capitalize(field))
 			if !val.IsValid() {
@@ -290,7 +290,7 @@ func entryData(entry *logpb.LogEntry, path string) any {
 	}
 
 	// Hack for logname:
-	if path == "LogName" {
+	if path == "logName" {
 		if s, ok := val.Interface().(string); ok {
 			p, _ := url.PathUnescape(s)
 			return p
