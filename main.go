@@ -428,13 +428,15 @@ func pullLogs(ctx context.Context, cancel context.CancelFunc, wg *sync.WaitGroup
 
 	for {
 		resp, err := stream.Recv()
-		if err == io.EOF {
+
+		switch err {
+		case io.EOF:
 			logger.Printf("EOF: %s\n", projID)
 			break
-		}
-		if err == context.Canceled {
+		case context.Canceled:
 			break
 		}
+
 		if err != nil {
 			stream.CloseSend()
 			logger.Printf("Error receiving (%s):%T: %v\n", projID, err, err)
@@ -445,14 +447,18 @@ func pullLogs(ctx context.Context, cancel context.CancelFunc, wg *sync.WaitGroup
 		for _, entry := range resp.Entries {
 			pcMU.Lock()
 			if pullCount >= config.Limit {
+				pcMU.Unlock()
 				stream.CloseSend()
 				return
 			}
+
 			ch <- entry
 			pullCount++
+
 			if pullCount == config.Limit {
 				// We hit the limit. Make everyone un-block and go home.
 				cancel()
+				pcMU.Unlock()
 				stream.CloseSend()
 				return
 			}
