@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/csv"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"gopkg.in/yaml.v3"
 	"io"
@@ -429,11 +430,11 @@ func pullLogs(ctx context.Context, cancel context.CancelFunc, wg *sync.WaitGroup
 	for {
 		resp, err := stream.Recv()
 
-		switch err {
-		case io.EOF:
+		if errors.Is(err, io.EOF) {
 			logger.Printf("EOF: %s\n", projID)
 			break
-		case context.Canceled:
+		}
+		if errors.Is(err, context.Canceled) {
 			break
 		}
 
