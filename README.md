@@ -11,7 +11,7 @@ Usage of ./log-tailor:
   -l value
     	Log to tail (short name, multiple ok)
   -limit int
-    	Number of entries to output. Defaults to MaxInt (default 9223372036854775807)
+    	Number of entries to output. (default 9223372036854775807)
   -p value
     	Project ID (multiple ok)
   -version
@@ -50,7 +50,7 @@ logs:
   - payload: payload.protopayload
 ```
 
-CSV output was added to pipe data into SQL databases. There's an example script that reads from `stdin` and sends to postgresql:
+CSV output was added to pipe data into SQL databases. If you have tree data being output in your yaml config, it will output it as json so you can use json columns in postgresql, for example. There's an example script that reads from `stdin` and sends to postgresql:
 
 ```bash
 ./log-tailor -format csv < output-config.yaml | ./scripts/csv2psql.sh user_name db_name table_name
