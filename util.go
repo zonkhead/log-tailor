@@ -86,8 +86,8 @@ func pathElements(path string) []string {
 				b.WriteString("." + re[i])
 			}
 			if i >= len(re) {
-				logger.Println("Parse error on key: " + path)
-				os.Exit(1)
+				logger.Println("Parse error on key(): " + path)
+				break
 			}
 			b.WriteString("." + strings.Replace(re[i], suffix, "", -1))
 			result = append(result, b.String())

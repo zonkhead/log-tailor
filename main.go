@@ -21,6 +21,8 @@ import (
 	logging "cloud.google.com/go/logging/apiv2"
 	logpb "cloud.google.com/go/logging/apiv2/loggingpb"
 
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protoreflect"
@@ -240,7 +242,7 @@ func logName(entry *logpb.LogEntry) string {
 	m := re.FindStringSubmatch(entry.LogName)
 	if m == nil {
 		logger.Printf("Something is fundamentally broken with logging LogName: %s", entry.LogName)
-		os.Exit(1)
+		return entry.LogName
 	}
 	fixed, _ := url.PathUnescape(m[1])
 	return fixed
@@ -397,8 +399,8 @@ type TailClient logpb.LoggingServiceV2_TailLogEntriesClient
 func startTailing(ctx context.Context, client *logging.Client, projID string) TailClient {
 	stream, err := client.TailLogEntries(ctx)
 	if err != nil {
-		logger.Printf("Failed to start log entry tail: %v\n", err)
-		os.Exit(1)
+		logger.Printf("Failed to start log entry tail (%s): %v", projID, err)
+		return nil
 	}
 
 	filter := createFilter(projID)
@@ -410,8 +412,8 @@ func startTailing(ctx context.Context, client *logging.Client, projID string) Ta
 
 	// Send the initial request to start streaming.
 	if err := stream.Send(req); err != nil {
-		logger.Printf("Failed to send tail request: %v\n", err)
-		os.Exit(1)
+		logger.Printf("Failed to send tail request (%s): %v", projID, err)
+		return nil
 	}
 
 	return stream
@@ -427,14 +429,18 @@ func pullLogs(ctx context.Context, cancel context.CancelFunc, wg *sync.WaitGroup
 	client, err := logging.NewClient(ctx)
 
 	if err != nil {
-		logger.Printf("Failed to create logging client: %v\n", err)
-		os.Exit(1)
+		logger.Printf("Failed to create logging client (%s): %v", projID, err)
+		return
 	}
 	defer client.Close()
 
 	stream := startTailing(ctx, client, projID)
 
 	for {
+		if stream == nil {
+			return
+		}
+
 		resp, err := stream.Recv()
 
 		if errors.Is(err, io.EOF) {
@@ -447,9 +453,15 @@ func pullLogs(ctx context.Context, cancel context.CancelFunc, wg *sync.WaitGroup
 
 		if err != nil {
 			stream.CloseSend()
-			logger.Printf("Error receiving (%s):%T: %v\n", projID, err, err)
-			stream = startTailing(ctx, client, projID)
-			continue
+			if st, ok := status.FromError(err); ok {
+				if st.Code() == codes.Unavailable {
+					logger.Printf("Cloud Logging disconnected us (%s). Reconnecting...", projID)
+					stream = startTailing(ctx, client, projID)
+					continue
+				}
+			}
+			logger.Printf("Error receiving (%s):%T: %v. Disconnecting...", projID, err, err)
+			return
 		}
 
 		for _, entry := range resp.Entries {
