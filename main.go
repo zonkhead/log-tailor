@@ -35,11 +35,13 @@ import (
 
 var config *Config
 
+const LogEntryChannelBufferSize int = 1024
+
 func main() {
 	config = getConfig(parseArgs())
 
 	ctx, cancel := context.WithCancel(context.Background())
-	ch := make(chan *logpb.LogEntry)
+	ch := make(chan *logpb.LogEntry, LogEntryChannelBufferSize)
 
 	var pullWG sync.WaitGroup
 
