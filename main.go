@@ -152,16 +152,21 @@ func createLogItem(entry *logpb.LogEntry) OutputMap {
 
 func addEntryToItem(item OutputMap, entry *logpb.LogEntry) {
 	val := reflect.ValueOf(entry.Payload)
-	if val.Type() == reflect.TypeOf(&logpb.LogEntry_ProtoPayload{}) {
+
+	switch entry.Payload.(type) {
+	case *logpb.LogEntry_ProtoPayload:
 		pp := val.Elem().Interface().(logpb.LogEntry_ProtoPayload)
-		item["protoPayload"] = reflect.ValueOf(getProtoPayload(pp)).Interface()
-	} else if val.Type() == reflect.TypeOf(&logpb.LogEntry_JsonPayload{}) {
+		item["protoPayload"] = getProtoPayload(pp)
+
+	case *logpb.LogEntry_JsonPayload:
 		jp := val.Elem().Interface().(logpb.LogEntry_JsonPayload)
 		item["jsonPayload"] = jp.JsonPayload.AsMap()
-	} else if val.Type() == reflect.TypeOf(&logpb.LogEntry_TextPayload{}) {
+
+	case *logpb.LogEntry_TextPayload:
 		tp := val.Elem().Interface().(logpb.LogEntry_TextPayload)
 		item["textPayload"] = tp.TextPayload
-	} else {
+
+	default:
 		item["payload"] = entry.Payload
 	}
 
