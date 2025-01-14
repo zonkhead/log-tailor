@@ -454,7 +454,7 @@ func pullLogs(ctx context.Context, cancel context.CancelFunc, wg *sync.WaitGroup
 		if err != nil {
 			stream.CloseSend()
 			if st, ok := status.FromError(err); ok {
-				if st.Code() == codes.Unavailable {
+				if st.Code() == codes.Unavailable || st.Code() == codes.OutOfRange {
 					logger.Printf("Cloud Logging disconnected us (%s). Reconnecting...", projID)
 					stream = startTailing(ctx, client, projID)
 					continue

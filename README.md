@@ -1,6 +1,6 @@
 # log-tailor
 
-A command line program for tailing GCP logs.
+A command line program for tailing GCP 
 
 ```bash
 Usage of ./log-tailor:
