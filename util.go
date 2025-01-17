@@ -97,15 +97,3 @@ func pathElements(path string) []string {
 	}
 	return result
 }
-
-func toSet[T comparable](sl []T) []T {
-	set := make(map[T]T)
-	for _, v := range sl {
-		set[v] = v
-	}
-	var gs []T
-	for k := range set {
-		gs = append(gs, k)
-	}
-	return gs
-}

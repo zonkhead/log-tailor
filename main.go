@@ -174,7 +174,8 @@ func addEntryToItem(item OutputMap, entry *logpb.LogEntry) {
 		item["payload"] = entry.Payload
 	}
 
-	item["logName"] = entry.LogName
+	fixedLogName, _ := url.PathUnescape(entry.LogName)
+	item["logName"] = fixedLogName
 	if entry.Resource != nil {
 		item["resource"] = entry.Resource
 	}
@@ -454,7 +455,10 @@ func pullLogs(ctx context.Context, cancel context.CancelFunc, wg *sync.WaitGroup
 		if err != nil {
 			stream.CloseSend()
 			if st, ok := status.FromError(err); ok {
-				if st.Code() == codes.Unavailable || st.Code() == codes.OutOfRange {
+				if st.Code() == codes.Unavailable ||
+					st.Code() == codes.OutOfRange ||
+					st.Code() == codes.Internal {
+
 					logger.Printf("Cloud Logging disconnected us (%s). Reconnecting...", projID)
 					stream = startTailing(ctx, client, projID)
 					continue
@@ -517,7 +521,7 @@ func createLogsFilter(proj string) string {
 	if len(logs) > 0 {
 		b.WriteString("logName = (")
 		for i, log := range logs {
-			b.WriteString(`"` + toLogStr(proj, fixLogName(log)) + `"`)
+			b.WriteString(`"` + toFQLogStr(proj, fixLogName(log)) + `"`)
 			if len(logs) > 1 && i < len(logs)-1 {
 				b.WriteString(" OR ")
 			}
@@ -539,6 +543,6 @@ func logsToSet(logs []Log) []string {
 	return result
 }
 
-func toLogStr(proj string, log string) string {
+func toFQLogStr(proj string, log string) string {
 	return fmt.Sprintf(`projects/%s/logs/%s`, proj, log)
 }
