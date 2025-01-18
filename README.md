@@ -2,6 +2,14 @@
 
 A command line program for tailing GCP
 
+Install:
+
+```bash
+go install github.com/zonkhead/log-tailor@latest
+```
+
+Options:
+
 ```bash
 Usage of ./log-tailor:
   -f value
