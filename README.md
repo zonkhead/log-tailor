@@ -1,6 +1,6 @@
 # log-tailor
 
-A command line program for tailing GCP 
+A command line program for tailing GCP
 
 ```bash
 Usage of ./log-tailor:
@@ -42,6 +42,7 @@ common-output:
 
 logs:
 - name: cloudaudit.googleapis.com/activity
+  type: k8s_cluster
   output:
   - payload: payload.protopayload
   - principalEmail: payload.protopayload.authenticationInfo.principalEmail
