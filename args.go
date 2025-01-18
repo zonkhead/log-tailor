@@ -40,12 +40,22 @@ func parseArgs() *cmdlnArgs {
 	flag.Var(&_args.filters, "f", "Filter expression (multiple ok)")
 	flag.IntVar(&_args.limit, "limit", math.MaxInt, "Number of entries to output.")
 	version := flag.Bool("version", false, "Show version info")
+
+	flag.Usage = func() {
+		stderrln("Usage of log-tailor:")
+		stderrln("  An application that tails GCP Cloud Logging and lets you ")
+		stderrln("  customize the output. See the README for details:")
+		stderrln("  https://github.com/zonkhead/log-tailor\n")
+		stderrln("Options:")
+		flag.PrintDefaults()
+	}
+
 	flag.Parse()
 	if _args.limit <= 0 {
 		_args.limit = math.MaxInt
 	}
 	if *version {
-		stderrln("Version: 0.1.15")
+		stderrln("Version: 0.2.0")
 		os.Exit(0)
 	}
 	return &_args

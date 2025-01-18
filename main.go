@@ -113,19 +113,15 @@ func addOutputToRow(outputs []OutputMap, item OutputMap, row []string) []string 
 	for _, m := range outputs {
 		for k := range m {
 			switch v := item[k].(type) {
-			case OutputMap:
-				json, _ := json.Marshal(v)
-				row = append(row, string(json))
-			case map[string]string:
-				json, _ := json.Marshal(v)
-				row = append(row, string(json))
-			case map[string]interface{}:
-				json, _ := json.Marshal(v)
-				row = append(row, string(json))
 			case string:
 				row = append(row, v)
 			default:
-				stderrf("key: %s: %T\n", k, v)
+				bytes, err := json.Marshal(v)
+				if err != nil {
+					stderrf("Error marshaling key %s: %v\n", k, err)
+					continue
+				}
+				row = append(row, string(bytes))
 			}
 		}
 	}
@@ -135,6 +131,16 @@ func addOutputToRow(outputs []OutputMap, item OutputMap, row []string) []string 
 func createLogItem(entry *logpb.LogEntry) OutputMap {
 	item := make(OutputMap)
 	lname := logName(entry)
+	hasCommon := len(config.Common) > 0
+	hasLogs := len(config.Logs) > 0
+
+	if !hasCommon && !hasLogs {
+		// Output the raw entry
+		addEntryToItem(item, entry)
+		return item
+	}
+
+	addOutputToItem(config.Common, item, entry)
 
 	for _, log := range config.Logs {
 		if lname == log.Name {
@@ -142,14 +148,11 @@ func createLogItem(entry *logpb.LogEntry) OutputMap {
 				continue
 			}
 			if len(log.Output) > 0 {
-				addOutputToItem(config.Common, item, entry)
 				addOutputToItem(log.Output, item, entry)
-				return item
+				break
 			}
 		}
 	}
-
-	addEntryToItem(item, entry)
 
 	return item
 }
