@@ -109,6 +109,27 @@ func processLogEntries(wg *sync.WaitGroup, ch <-chan *logpb.LogEntry) {
 	}
 }
 
+// Determines if the entry should be logged to stdout
+func shouldDropEntry(entry *logpb.LogEntry) bool {
+	if config.MatchRule == "drop-no-match" {
+		for _, log := range config.Logs {
+			lnMatch := logName(entry) == log.Name
+			if !lnMatch {
+				continue
+			}
+			typeMatch := true
+			if log.ResType != "" {
+				typeMatch = entry.Resource.Type == log.ResType
+			}
+			if typeMatch {
+				return false
+			}
+		}
+		return true
+	}
+	return false
+}
+
 func addOutputToRow(outputs []OutputMap, item OutputMap, row []string) []string {
 	for _, m := range outputs {
 		for k := range m {
@@ -131,17 +152,10 @@ func addOutputToRow(outputs []OutputMap, item OutputMap, row []string) []string 
 func createLogItem(entry *logpb.LogEntry) OutputMap {
 	item := make(OutputMap)
 	lname := logName(entry)
-	hasCommon := len(config.Common) > 0
-	hasLogs := len(config.Logs) > 0
-
-	if !hasCommon && !hasLogs {
-		// Output the raw entry
-		addEntryToItem(item, entry)
-		return item
-	}
 
 	addOutputToItem(config.Common, item, entry)
 
+	// Find the first matching log and use it's outputs
 	for _, log := range config.Logs {
 		if lname == log.Name {
 			if log.ResType != "" && log.ResType != entry.Resource.Type {
@@ -154,6 +168,10 @@ func createLogItem(entry *logpb.LogEntry) OutputMap {
 		}
 	}
 
+	if len(item) == 0 {
+		// There were no outputs specified so we use all the data
+		addEntryToItem(item, entry)
+	}
 	return item
 }
 
@@ -376,24 +394,6 @@ func serialCSVWrite(row []string) {
 	csvWr.Flush()
 }
 
-// Determines if the entry should be logged to stdout
-func shouldDropEntry(entry *logpb.LogEntry) bool {
-	if config.MatchRule == "drop-no-match" {
-		for _, log := range config.Logs {
-			lnMatch := logName(entry) == log.Name
-			typeMatch := true
-			if log.ResType != "" {
-				typeMatch = entry.Resource.Type == log.ResType
-			}
-			if lnMatch && typeMatch {
-				return false
-			}
-		}
-		return true
-	}
-	return false
-}
-
 func getProjID(entry *logpb.LogEntry) string {
 	return entry.Resource.Labels["project_id"]
 }
@@ -520,8 +520,8 @@ func fixLogName(l string) string {
 
 func createLogsFilter(proj string) string {
 	var b strings.Builder
-	logs := logsToSet(config.Logs)
-	if len(logs) > 0 {
+	if len(config.Logs) > 0 {
+		logs := logsToSet(config.Logs)
 		b.WriteString("logName = (")
 		for i, log := range logs {
 			b.WriteString(`"` + toFQLogStr(proj, fixLogName(log)) + `"`)
