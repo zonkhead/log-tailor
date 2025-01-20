@@ -2,7 +2,6 @@ package main
 
 import (
 	"gopkg.in/yaml.v3"
-	"io"
 	logger "log"
 	"os"
 )
@@ -26,23 +25,16 @@ type Log struct {
 }
 
 // Reads the yaml config from stdin
-func getConfig(args *cmdlnArgs) *Config {
+func getConfig(data []byte, args *cmdlnArgs) *Config {
 	// First, check to see if there actually is stdin data.
-	stat, _ := os.Stdin.Stat()
-	if stat.Mode()&os.ModeCharDevice != 0 {
+	if data == nil {
 		config := &Config{}
 		return config.setDefaults().overrideFields(args)
 	}
 
-	data, err := io.ReadAll(os.Stdin)
-	if err != nil {
-		logger.Printf("Error reading from stdin: %v\n", err)
-		os.Exit(1)
-	}
-
 	var config Config
 
-	err = yaml.Unmarshal(data, &config)
+	err := yaml.Unmarshal(data, &config)
 	if err != nil {
 		logger.Printf("Error parsing YAML: %v\n", err)
 		os.Exit(1)
@@ -66,6 +58,9 @@ func (c *Config) setDefaults() *Config {
 // Let the command line args override their equivalents
 // in the yaml config.
 func (c *Config) overrideFields(args *cmdlnArgs) *Config {
+	if args == nil {
+		return c
+	}
 	c.Limit = args.limit
 	c.Format = args.format
 

@@ -6,7 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"gopkg.in/yaml.v3"
+	"gopkg.in/yaml.v2"
 	"io"
 	logger "log"
 	"net/url"
@@ -40,7 +40,8 @@ var config *Config
 const LogEntryChannelBufferSize int = 1024
 
 func main() {
-	config = getConfig(parseArgs())
+	stdin := readFromStdin()
+	config = getConfig(stdin, parseArgs())
 
 	ctx, cancel := context.WithCancel(context.Background())
 	ch := make(chan *logpb.LogEntry, LogEntryChannelBufferSize)
@@ -72,6 +73,7 @@ func processLogEntries(wg *sync.WaitGroup, ch <-chan *logpb.LogEntry) {
 
 	for {
 		entry, ok := <-ch
+
 		if !ok {
 			break
 		}
@@ -79,11 +81,16 @@ func processLogEntries(wg *sync.WaitGroup, ch <-chan *logpb.LogEntry) {
 			continue
 		}
 
-		li := createLogItem(entry)
+		li, match := createLogItem(entry)
 
 		switch config.Format {
 		case "yaml":
-			if bytes, err := yaml.Marshal(li); err != nil {
+			var logItem any = li
+
+			if len(config.Common) > 0 || (match != nil && len(match.Output) > 0) {
+				logItem = sortedYaml(li, match)
+			}
+			if bytes, err := yaml.Marshal(logItem); err != nil {
 				stderrf("%v\n", err)
 			} else {
 				serialPrintf("---\n%+v", string(bytes))
@@ -130,39 +137,23 @@ func shouldDropEntry(entry *logpb.LogEntry) bool {
 	return false
 }
 
-func addOutputToRow(outputs []OutputMap, item OutputMap, row []string) []string {
-	for _, m := range outputs {
-		for k := range m {
-			switch v := item[k].(type) {
-			case string:
-				row = append(row, v)
-			default:
-				bytes, err := json.Marshal(v)
-				if err != nil {
-					stderrf("Error marshaling key %s: %v\n", k, err)
-					continue
-				}
-				row = append(row, string(bytes))
-			}
-		}
-	}
-	return row
-}
-
-func createLogItem(entry *logpb.LogEntry) OutputMap {
+func createLogItem(entry *logpb.LogEntry) (OutputMap, *Log) {
 	item := make(OutputMap)
 	lname := logName(entry)
+	var match *Log
 
 	addOutputToItem(config.Common, item, entry)
 
 	// Find the first matching log and use it's outputs
-	for _, log := range config.Logs {
+	for i := 0; i < len(config.Logs); i++ {
+		log := &config.Logs[i]
 		if lname == log.Name {
 			if log.ResType != "" && log.ResType != entry.Resource.Type {
 				continue
 			}
 			if len(log.Output) > 0 {
 				addOutputToItem(log.Output, item, entry)
+				match = log
 				break
 			}
 		}
@@ -172,7 +163,7 @@ func createLogItem(entry *logpb.LogEntry) OutputMap {
 		// There were no outputs specified so we use all the data
 		addEntryToItem(item, entry)
 	}
-	return item
+	return item, match
 }
 
 func addEntryToItem(item OutputMap, entry *logpb.LogEntry) {
@@ -251,12 +242,23 @@ func addToItem(name string, oi any, item OutputMap, entry *logpb.LogEntry) {
 	}
 }
 
-func fieldName(outItem OutputMap) string {
-	name := ""
-	for k := range outItem {
-		name = k
+func addOutputToRow(outputs []OutputMap, item OutputMap, row []string) []string {
+	for _, m := range outputs {
+		for k := range m {
+			switch v := item[k].(type) {
+			case string:
+				row = append(row, v)
+			default:
+				bytes, err := json.Marshal(v)
+				if err != nil {
+					stderrf("Error marshaling key %s: %v\n", k, err)
+					continue
+				}
+				row = append(row, string(bytes))
+			}
+		}
 	}
-	return name
+	return row
 }
 
 func logName(entry *logpb.LogEntry) string {
@@ -511,7 +513,7 @@ func createFilter(proj string) string {
 }
 
 // URL encodes the log name. Cloud logging is picky that way.
-func fixLogName(l string) string {
+func escLogName(l string) string {
 	if strings.Contains(l, "/") {
 		return url.PathEscape(l)
 	}
@@ -524,7 +526,7 @@ func createLogsFilter(proj string) string {
 		logs := logsToSet(config.Logs)
 		b.WriteString("logName = (")
 		for i, log := range logs {
-			b.WriteString(`"` + toFQLogStr(proj, fixLogName(log)) + `"`)
+			b.WriteString(`"` + toFQLogStr(proj, escLogName(log)) + `"`)
 			if len(logs) > 1 && i < len(logs)-1 {
 				b.WriteString(" OR ")
 			}

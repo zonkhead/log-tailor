@@ -2,7 +2,8 @@ package main
 
 import (
 	"fmt"
-	"gopkg.in/yaml.v3"
+	"gopkg.in/yaml.v2"
+	"io"
 	logger "log"
 	"os"
 	"regexp"
@@ -96,4 +97,50 @@ func pathElements(path string) []string {
 		}
 	}
 	return result
+}
+
+// Sorts the LogItem by the order found in the config.
+func sortedYaml(logItem OutputMap, match *Log) yaml.MapSlice {
+	var ordered yaml.MapSlice
+	for _, om := range config.Common {
+		name := fieldName(om)
+		ordered = append(ordered, yaml.MapItem{
+			Key:   name,
+			Value: logItem[name],
+		})
+	}
+	if match != nil {
+		for _, om := range match.Output {
+			name := fieldName(om)
+			ordered = append(ordered, yaml.MapItem{
+				Key:   name,
+				Value: logItem[name],
+			})
+		}
+	}
+	return ordered
+}
+
+func fieldName(outItem OutputMap) string {
+	name := ""
+	for k := range outItem {
+		name = k
+	}
+	return name
+}
+
+// Returns nil if there's nothing on stdin
+func readFromStdin() []byte {
+	// First, check to see if there actually is stdin data.
+	stat, _ := os.Stdin.Stat()
+	if stat.Mode()&os.ModeCharDevice != 0 {
+		return nil
+	}
+
+	data, err := io.ReadAll(os.Stdin)
+	if err != nil {
+		logger.Printf("Error reading from stdin: %v\n", err)
+		os.Exit(1)
+	}
+	return data
 }
