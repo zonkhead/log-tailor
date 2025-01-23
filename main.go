@@ -425,10 +425,6 @@ func startTailing(ctx context.Context, client *logging.Client, projID string) Ta
 	return stream
 }
 
-// Multiple goroutines share these.
-var pullCount int = 0
-var pcMU sync.Mutex
-
 // Pulls log entries from cloud loggging and then puts them in the channel.
 func pullLogs(ctx context.Context, cancel context.CancelFunc, wg *sync.WaitGroup, projID string, ch chan<- *logpb.LogEntry) {
 	defer wg.Done()
@@ -459,7 +455,7 @@ func pullLogs(ctx context.Context, cancel context.CancelFunc, wg *sync.WaitGroup
 
 		if err != nil {
 			stream.CloseSend()
-			if reconnect := isReconnectableGRPCError(err); reconnect {
+			if isReconnectableGRPCError(err) {
 				logger.Printf("Cloud Logging disconnected us (%s). Reconnecting...", projID)
 				stream = startTailing(ctx, client, projID)
 				continue
@@ -469,7 +465,7 @@ func pullLogs(ctx context.Context, cancel context.CancelFunc, wg *sync.WaitGroup
 		}
 
 		for _, entry := range resp.Entries {
-			if success := putEntryIntoChannel(entry, ch, cancel); !success {
+			if !putEntryIntoChannel(entry, ch, cancel) {
 				stream.CloseSend()
 				return
 			}
@@ -490,6 +486,10 @@ func isReconnectableGRPCError(err error) bool {
 	}
 	return false
 }
+
+// Multiple goroutines share these.
+var pullCount int = 0
+var pcMU sync.Mutex
 
 // Puts an entry into the channel unless we hit the limit. Hitting the limit returns false
 // and cancels the channel if we hit the limit with this particular request.
