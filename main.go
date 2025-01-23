@@ -459,43 +459,57 @@ func pullLogs(ctx context.Context, cancel context.CancelFunc, wg *sync.WaitGroup
 
 		if err != nil {
 			stream.CloseSend()
-			if st, ok := status.FromError(err); ok {
-				if st.Code() == codes.Unavailable ||
-					st.Code() == codes.OutOfRange ||
-					st.Code() == codes.Internal {
-
-					logger.Printf("Cloud Logging disconnected us (%s). Reconnecting...", projID)
-					stream = startTailing(ctx, client, projID)
-					continue
-				}
+			if reconnect := isReconnectableGRPCError(err); reconnect {
+				logger.Printf("Cloud Logging disconnected us (%s). Reconnecting...", projID)
+				stream = startTailing(ctx, client, projID)
+				continue
 			}
 			logger.Printf("Error receiving (%s):%T: %v. Disconnecting...", projID, err, err)
 			return
 		}
 
 		for _, entry := range resp.Entries {
-			pcMU.Lock()
-			if pullCount >= config.Limit {
-				pcMU.Unlock()
+			if success := putEntryIntoChannel(entry, ch, cancel); !success {
 				stream.CloseSend()
 				return
 			}
-
-			ch <- entry
-			pullCount++
-
-			if pullCount == config.Limit {
-				// We hit the limit. Make everyone un-block and go home.
-				cancel()
-				pcMU.Unlock()
-				stream.CloseSend()
-				return
-			}
-			pcMU.Unlock()
 		}
 	}
 
 	stream.CloseSend()
+}
+
+// If it's a reconnectable error, return true.
+func isReconnectableGRPCError(err error) bool {
+	if st, ok := status.FromError(err); ok {
+		if st.Code() == codes.Unavailable ||
+			st.Code() == codes.OutOfRange ||
+			st.Code() == codes.Internal {
+			return true
+		}
+	}
+	return false
+}
+
+// Puts an entry into the channel unless we hit the limit. Hitting the limit returns false
+// and cancels the channel if we hit the limit with this particular request.
+func putEntryIntoChannel(entry *logpb.LogEntry, ch chan<- *logpb.LogEntry, cancel context.CancelFunc) bool {
+	pcMU.Lock()
+	defer pcMU.Unlock()
+	if pullCount >= config.Limit {
+		return false
+	}
+
+	ch <- entry
+	pullCount++
+
+	if pullCount == config.Limit {
+		// We hit the limit. Make everyone un-block and go home.
+		cancel()
+		return false
+	}
+
+	return true
 }
 
 // Gets all the filters and logs and turns them into a string
