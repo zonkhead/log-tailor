@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"gopkg.in/yaml.v2"
 	"io"
@@ -72,13 +73,19 @@ func min(a, b int) int {
 // resource.labels.dataset_id
 // labels.key(authorization.k8s.io/decision)
 func pathElements(path string) []string {
+	elems, _ := validatePathElements(path)
+	return elems
+}
+
+func validatePathElements(path string) ([]string, error) {
 	prefix := "key("
 	suffix := ")"
 	if !strings.Contains(path, prefix) {
-		return strings.Split(path, ".")
+		return strings.Split(path, "."), nil
 	}
 	var result []string
 	re := strings.Split(path, ".")
+	var err error
 	for i := 0; i < len(re); i++ {
 		e := re[i]
 		if strings.HasPrefix(e, prefix) {
@@ -88,7 +95,7 @@ func pathElements(path string) []string {
 				b.WriteString("." + re[i])
 			}
 			if i >= len(re) {
-				logger.Println("Parse error on key(): " + path)
+				err = errors.New("Parse error on key(): " + path)
 				break
 			}
 			b.WriteString("." + strings.Replace(re[i], suffix, "", -1))
@@ -97,7 +104,7 @@ func pathElements(path string) []string {
 			result = append(result, e)
 		}
 	}
-	return result
+	return result, err
 }
 
 // Sorts the LogItem by the order found in the config.

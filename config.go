@@ -109,20 +109,31 @@ func (c *Config) validatePaths() *Config {
 func validateOutput(o any) {
 	switch o := o.(type) {
 	case string:
-		pathElements(o)
+		if _, err := validatePathElements(o); err != nil {
+			logAndDie(err.Error())
+		}
 	case OutputMap:
 		if hasKeys(o, "src", "regex", "value") {
 			s := o["src"].(string)
-			pathElements(s)
+			if _, err := validatePathElements(s); err != nil {
+				logAndDie(err.Error())
+			}
 		} else {
 			for k := range o {
 				switch kv := o[k].(type) {
 				case string:
-					pathElements(kv)
+					if _, err := validatePathElements(kv); err != nil {
+						logAndDie(err.Error())
+					}
 				case OutputMap:
 					validateOutput(kv)
 				}
 			}
 		}
 	}
+}
+
+func logAndDie(msg string) {
+	logger.Println(msg)
+	os.Exit(1)
 }
