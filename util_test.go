@@ -1,6 +1,7 @@
 package main
 
 import (
+	"net/url"
 	"reflect"
 	"testing"
 )
@@ -76,5 +77,53 @@ func TestPathElements(t *testing.T) {
 		if !reflect.DeepEqual(got, tt.expected) {
 			t.Errorf("pathElements(%q) = %v; want %v", tt.input, got, tt.expected)
 		}
+	}
+}
+
+func TestEscLogName(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "No slash in log name",
+			input:    "simple.log",
+			expected: "simple.log",
+		},
+		{
+			name:     "Single slash in log name",
+			input:    "cloudaudit.googleapis.com/activity",
+			expected: url.PathEscape("cloudaudit.googleapis.com/activity"),
+		},
+		{
+			name:     "Multiple slashes in log name",
+			input:    "folder/subfolder/logname",
+			expected: url.PathEscape("folder/subfolder/logname"),
+		},
+		{
+			name:     "Empty string",
+			input:    "",
+			expected: "",
+		},
+		{
+			name:     "Unicode characters with slash",
+			input:    "folder/日志",
+			expected: url.PathEscape("folder/日志"),
+		},
+		{
+			name:     "Unicode characters without slash",
+			input:    "日志",
+			expected: "日志",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := escLogName(tt.input)
+			if result != tt.expected {
+				t.Errorf("escLogName(%q) = %q; want %q", tt.input, result, tt.expected)
+			}
+		})
 	}
 }

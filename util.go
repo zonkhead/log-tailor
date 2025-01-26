@@ -5,6 +5,7 @@ import (
 	"gopkg.in/yaml.v2"
 	"io"
 	logger "log"
+	"net/url"
 	"os"
 	"regexp"
 	"strconv"
@@ -121,6 +122,8 @@ func sortedYaml(logItem OutputMap, match *Log) yaml.MapSlice {
 	return ordered
 }
 
+// Each output item just has one field with a value. The
+// field key is the name.
 func fieldName(outItem OutputMap) string {
 	name := ""
 	for k := range outItem {
@@ -143,4 +146,12 @@ func readFromStdin() []byte {
 		os.Exit(1)
 	}
 	return data
+}
+
+// URL encodes the log name. Cloud logging is picky that way.
+func escLogName(l string) string {
+	if strings.Contains(l, "/") {
+		return url.PathEscape(l)
+	}
+	return l
 }
