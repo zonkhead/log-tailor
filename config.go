@@ -16,6 +16,7 @@ type Config struct {
 	Common    []OutputMap `yaml:"common-output"`
 	Logs      []Log       `yaml:"logs"`
 	Filters   []string    `yaml:"filters"`
+	UnBuf     bool
 }
 
 type Log struct {
@@ -52,6 +53,7 @@ func (c *Config) setDefaults() *Config {
 	if c.MatchRule == "" {
 		c.MatchRule = "all"
 	}
+	c.UnBuf = false
 	return c
 }
 
@@ -88,6 +90,8 @@ func (c *Config) overrideFields(args *cmdlnArgs) *Config {
 		stderrln("\nYou must specify at least one project.")
 		os.Exit(1)
 	}
+
+	c.UnBuf = args.unbuf
 
 	return c
 }

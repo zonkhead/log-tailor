@@ -29,6 +29,7 @@ type cmdlnArgs struct {
 	logs    stringList
 	filters stringList
 	limit   int
+	unbuf   bool
 }
 
 var _args cmdlnArgs
@@ -39,6 +40,7 @@ func parseArgs() *cmdlnArgs {
 	flag.Var(&_args.logs, "l", "Log to tail (short name, multiple ok)")
 	flag.Var(&_args.filters, "f", "Filter expression (multiple ok)")
 	flag.IntVar(&_args.limit, "limit", math.MaxInt, "Number of entries to output.")
+	flag.BoolVar(&_args.unbuf, "unbuffered", false, "Unbuffered stdout")
 	version := flag.Bool("version", false, "Show version info")
 
 	flag.Usage = func() {
@@ -55,7 +57,7 @@ func parseArgs() *cmdlnArgs {
 		_args.limit = math.MaxInt
 	}
 	if *version {
-		stderrln("Version: 0.2.3")
+		stderrln("Version: 0.2.4")
 		os.Exit(0)
 	}
 	return &_args

@@ -53,6 +53,10 @@ func processLogEntries(wg *sync.WaitGroup, ch <-chan *logpb.LogEntry) {
 		case "csv":
 			processCSV(li)
 		}
+
+		if config.UnBuf {
+			os.Stdout.Sync()
+		}
 	}
 }
 
