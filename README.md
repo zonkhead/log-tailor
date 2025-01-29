@@ -52,11 +52,11 @@ logs:
 - name: cloudaudit.googleapis.com/activity
   type: k8s_cluster
   output:
-  - payload: payload.protopayload
-  - principalEmail: payload.protopayload.authenticationInfo.principalEmail
+  - payload: protopayload
+  - principalEmail: protopayload.authenticationInfo.principalEmail
 - name: cloudaudit.googleapis.com/data_access
   output:
-  - payload: payload.protopayload
+  - payload: protopayload
 ```
 
 CSV output was added to pipe data into SQL databases. If you have tree data being output in your yaml config, it will output it as json so you can use json columns in postgresql, for example. There's an example script that reads from `stdin` and sends to postgresql:
