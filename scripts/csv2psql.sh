@@ -24,8 +24,8 @@ done
 
 # Process remaining lines in the buffer
 if [[ -n "$BUFFER" ]]; then
-    psql -U your_username -d your_database <<EOF
-\COPY your_table FROM STDIN WITH CSV
+    psql -U "$USER" -d "$DB" <<EOF
+\COPY $TABLE FROM STDIN WITH CSV
 $BUFFER
 EOF
 fi
