@@ -56,7 +56,7 @@ func pullLogs(ctx context.Context, cancel context.CancelFunc, wg *sync.WaitGroup
 	wg.Add(1)
 	defer wg.Done()
 
-	stream := startTailing(ctx, projID)
+	stream, client := startTailing(ctx, projID)
 
 	for {
 		if stream == nil {
@@ -75,9 +75,10 @@ func pullLogs(ctx context.Context, cancel context.CancelFunc, wg *sync.WaitGroup
 
 		if err != nil {
 			stream.CloseSend()
+			client.Close()
 			if isReconnectableGRPCError(err) {
 				logger.Printf("Cloud Logging disconnected us (%s). Reconnecting...", projID)
-				stream = startTailing(ctx, projID)
+				stream, client = startTailing(ctx, projID)
 				continue
 			}
 			logger.Printf("Error receiving (%s):%T: %v. Disconnecting...", projID, err, err)
@@ -97,18 +98,19 @@ func pullLogs(ctx context.Context, cancel context.CancelFunc, wg *sync.WaitGroup
 
 type TailClient logpb.LoggingServiceV2_TailLogEntriesClient
 
-func startTailing(ctx context.Context, projID string) TailClient {
+func startTailing(ctx context.Context, projID string) (TailClient, *logging.Client) {
 	client, err := logging.NewClient(ctx)
 
 	if err != nil {
 		logger.Printf("Failed to create logging client (%s): %v", projID, err)
-		return nil
+		return nil, nil
 	}
 
 	stream, err := client.TailLogEntries(ctx)
 	if err != nil {
 		logger.Printf("Failed to start log entry tail (%s): %v", projID, err)
-		return nil
+		client.Close()
+		return nil, nil
 	}
 
 	filter := createFilter(projID)
@@ -121,10 +123,11 @@ func startTailing(ctx context.Context, projID string) TailClient {
 	// Send the initial request to start streaming.
 	if err := stream.Send(req); err != nil {
 		logger.Printf("Failed to send tail request (%s): %v", projID, err)
-		return nil
+		client.Close()
+		return nil, nil
 	}
 
-	return stream
+	return stream, client
 }
 
 // If it's a reconnectable error, return true.
