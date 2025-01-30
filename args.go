@@ -57,7 +57,7 @@ func parseArgs() *cmdlnArgs {
 		_args.limit = math.MaxInt
 	}
 	if *version {
-		stderrln("Version: 0.2.4")
+		stderrln("Version: 0.2.5")
 		os.Exit(0)
 	}
 	return &_args
