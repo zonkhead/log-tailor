@@ -1,10 +1,10 @@
 package main
 
 import (
+	"bufio"
 	"encoding/csv"
 	"encoding/json"
 	"fmt"
-	"gopkg.in/yaml.v2"
 	logger "log"
 	"net/url"
 	"os"
@@ -13,6 +13,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"gopkg.in/yaml.v2"
 
 	logpb "cloud.google.com/go/logging/apiv2/loggingpb"
 
@@ -45,14 +47,18 @@ func processLogEntries(wg *sync.WaitGroup, ch <-chan *logpb.LogEntry) {
 
 		li, match := createLogItem(entry)
 
+		writer := bufio.NewWriter(os.Stdout)
+
 		switch config.Format {
 		case "yaml":
-			processYAML(li, match)
+			processYAML(writer, li, match)
 		case "json":
-			processJSON(li)
+			processJSON(writer, li)
 		case "csv":
-			processCSV(li)
+			processCSV(writer, li)
 		}
+
+		writer.Flush()
 
 		if config.UnBuf {
 			os.Stdout.Sync()
@@ -60,7 +66,7 @@ func processLogEntries(wg *sync.WaitGroup, ch <-chan *logpb.LogEntry) {
 	}
 }
 
-func processYAML(li OutputMap, match *Log) {
+func processYAML(writer *bufio.Writer, li OutputMap, match *Log) {
 	var logItem any = li
 
 	if len(config.Common) > 0 || (match != nil && len(match.Output) > 0) {
@@ -69,19 +75,19 @@ func processYAML(li OutputMap, match *Log) {
 	if bytes, err := yaml.Marshal(logItem); err != nil {
 		stderrf("%v\n", err)
 	} else {
-		fmt.Printf("---\n%+v", string(bytes))
+		fmt.Fprintf(writer, "---\n%s", bytes)
 	}
 }
 
-func processJSON(li OutputMap) {
+func processJSON(writer *bufio.Writer, li OutputMap) {
 	if bytes, err := json.Marshal(li); err != nil {
 		stderrf("%v\n", err)
 	} else {
-		fmt.Printf("%+v\n", string(bytes))
+		fmt.Fprintf(writer, "%s\n", bytes)
 	}
 }
 
-func processCSV(li OutputMap) {
+func processCSV(writer *bufio.Writer, li OutputMap) {
 	var row []string
 	if len(config.Common) > 0 {
 		row = addOutputToRow(config.Common, li, row)
@@ -91,7 +97,7 @@ func processCSV(li OutputMap) {
 			row = addOutputToRow(l.Output, li, row)
 		}
 	}
-	serialCSVWrite(row)
+	serialCSVWrite(writer, row)
 }
 
 // Determines if the entry should be logged to stdout
@@ -359,10 +365,10 @@ func getMessageNameFromTypeURL(typeURL string) string {
 var printMU sync.Mutex
 
 // Makes sure printing to stdout doesn't overlap.
-func serialCSVWrite(row []string) {
+func serialCSVWrite(writer *bufio.Writer, row []string) {
 	printMU.Lock()
 	defer printMU.Unlock()
-	csvWr := csv.NewWriter(os.Stdout)
+	csvWr := csv.NewWriter(writer)
 	csvWr.Write(row)
 	csvWr.Flush()
 }
