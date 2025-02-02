@@ -53,12 +53,20 @@ func parseArgs() *cmdlnArgs {
 	}
 
 	flag.Parse()
+	if *version {
+		stderrln("Version: 0.3.2")
+		os.Exit(0)
+	}
+	switch _args.format {
+	case "jsonl":
+	case "yaml":
+	case "csv":
+	default:
+		stderrln("Invalid format: " + _args.format)
+		os.Exit(1)
+	}
 	if _args.limit <= 0 {
 		_args.limit = math.MaxInt
-	}
-	if *version {
-		stderrln("Version: 0.3.1")
-		os.Exit(0)
 	}
 	return &_args
 }
