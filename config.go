@@ -1,9 +1,10 @@
 package main
 
 import (
-	"gopkg.in/yaml.v3"
 	logger "log"
 	"os"
+
+	"gopkg.in/yaml.v3"
 )
 
 type OutputMap map[string]any
@@ -16,7 +17,7 @@ type Config struct {
 	Common    []OutputMap `yaml:"common-output"`
 	Logs      []Log       `yaml:"logs"`
 	Filters   []string    `yaml:"filters"`
-	UnBuf     bool
+	Buffered  bool
 }
 
 type Log struct {
@@ -53,7 +54,7 @@ func (c *Config) setDefaults() *Config {
 	if c.MatchRule == "" {
 		c.MatchRule = "all"
 	}
-	c.UnBuf = false
+	c.Buffered = false
 	return c
 }
 
@@ -91,7 +92,7 @@ func (c *Config) overrideFields(args *cmdlnArgs) *Config {
 		os.Exit(1)
 	}
 
-	c.UnBuf = args.unbuf
+	c.Buffered = args.buffered
 
 	return c
 }

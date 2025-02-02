@@ -60,7 +60,7 @@ func processLogEntries(wg *sync.WaitGroup, ch <-chan *logpb.LogEntry) {
 
 		writer.Flush()
 
-		if config.UnBuf {
+		if !config.Buffered {
 			os.Stdout.Sync()
 		}
 	}
