@@ -52,7 +52,7 @@ func processLogEntries(wg *sync.WaitGroup, ch <-chan *logpb.LogEntry) {
 		switch config.Format {
 		case "yaml":
 			processYAML(writer, li, match)
-		case "json":
+		case "jsonl":
 			processJSON(writer, li)
 		case "csv":
 			processCSV(writer, li)
